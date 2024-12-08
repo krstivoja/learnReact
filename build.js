@@ -1,13 +1,26 @@
 const esbuild = require("esbuild");
-const glob = require("glob");
+const fs = require("fs");
 const path = require("path");
 
+async function findIndexFiles(dir) {
+    let results = [];
+    const list = fs.readdirSync(dir);
+    for (const file of list) {
+        const filePath = path.join(dir, file);
+        if (fs.statSync(filePath).isDirectory() && file !== 'node_modules') {
+            results = results.concat(await findIndexFiles(filePath)); // Await the recursive call
+        } else if (file === 'index.js') {
+            results.push(filePath); // Add index.js file to results
+        }
+    }
+    return results;
+}
+
 async function build() {
-    // Use glob to find all index.js files in src folders, excluding node_modules
-    const entries = glob.sync("./**/src/index.js", { ignore: ["**/node_modules/**"] });
+    const entries = await findIndexFiles('./examples'); // Await the function to get the results
 
     for (const entry of entries) {
-        const output = path.join(path.dirname(entry), "bundle.js"); // Output to the same directory as the input
+        const output = path.join(path.dirname(entry), "bundle.js"); // Ensure entry is a string
 
         try {
             await esbuild.build({
@@ -16,9 +29,9 @@ async function build() {
                 minify: false,
                 outfile: output,
                 loader: { ".js": "jsx" },
-                jsxFactory: "React.createElement", // Optional if you want to keep the old behavior
-                jsxFragment: "React.Fragment", // Optional if you want to keep the old behavior
-                jsx: "automatic", // This enables the new JSX transform
+                jsxFactory: "React.createElement",
+                jsxFragment: "React.Fragment",
+                jsx: "automatic",
             });
             console.log(`Build successful for ${output}`);
         } catch (error) {
